@@ -6,7 +6,7 @@
     return;
   }
 
-  const pyodide = await loadPyodide({indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.0/full/"});
+  const pyodide = await loadPyodide({indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/"});
   await pyodide.loadPackage(['micropip']);
   const micropip = pyodide.pyimport('micropip');
   await micropip.install('numpy'); // simulate.py uses numpy
@@ -71,13 +71,22 @@
       const obj = res_py.toJs({dict_converter: Object});
       res_py.destroy && res_py.destroy();
 
-      const x = obj.x;
-      const y = obj.y;
-      const z = obj.z;
+      // if obj is an array of [key, value] pairs:
+      const dict = Array.isArray(obj) ? Object.fromEntries(obj) : obj;
+
+      // if values might be PyProxies, convert them
+      const toJsSafe = v => (v && typeof v.toJs === 'function') ? v.toJs({dict_converter: Object}) : v;
+
+      const x = toJsSafe(dict.x);
+      const y = toJsSafe(dict.y);
+      const z = toJsSafe(dict.z);
+
+      console.log({obj, x: obj.x, y: obj.y, z: obj.z, isArrayX: Array.isArray(obj.x)});
 
       const trace = { x: x, y: y, z: z, mode: 'lines', type: 'scatter3d', line:{width:2} };
       const layout = { title: 'Lorenz attractor', margin:{t:40} };
       Plotly.react('plot', [trace], layout, {responsive:true});
+      // Plotly.react('plot', [{x:[0,1,2], y:[0,1,0], z:[0,0,1], mode:'lines', type:'scatter3d'}], {margin:{t:40}});
 
     } catch(err){
       outPre.style.display = 'block';
