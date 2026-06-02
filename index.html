@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lorenz Simulation</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.25.2.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .controls { display: flex; gap: 16px; margin-bottom: 12px; align-items:center; flex-wrap:wrap; }
+    .control { display:flex; flex-direction:column; align-items:flex-start; }
+    label { font-weight:600; margin-bottom:6px; }
+  </style>
+</head>
+<body>
+  <h2>Set Simulation Values</h2>
+
+  <div class="controls">
+    <div class="control">
+      <label for="slider_sigma">sigma</label>
+      <input id="slider_sigma" type="range" min="0" max="20" step="0.1" value="10">
+      <span id="val_sigma">10</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_rho">rho</label>
+      <input id="slider_rho" type="range" min="0" max="100" step="0.1" value="28">
+      <span id="val_rho">28</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_beta">beta</label>
+      <input id="slider_beta" type="range" min="0" max="10" step="0.001" value="2.666">
+      <span id="val_beta">2.666</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_x">x</label>
+      <input id="slider_x" type="range" min="-10" max="10" step="0.1" value="1">
+      <span id="val_x">1</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_y">y</label>
+      <input id="slider_y" type="range" min="-10" max="10" step="0.1" value="0">
+      <span id="val_y">0</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_z">z</label>
+      <input id="slider_z" type="range" min="-10" max="10" step="0.1" value="0">
+      <span id="val_z">0</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_dt">dt</label>
+      <input id="slider_dt" type="range" min="0.001" max="1" step="0.001" value="0.01">
+      <span id="val_dt">0.01</span>
+    </div>
+
+    <div class="control">
+      <label for="slider_n">N (points)</label>
+      <input id="slider_n" type="range" min="100" max="10000" step="100" value="1000">
+      <span id="val_n">1000</span>
+    </div>
+
+    <button id="run">Run</button>
+  </div>
+
+  <div id="plot" style="width:100%;max-width:900px;height:600px;"></div>
+  <pre id="py-output" style="background:#f7f7f7;padding:8px;display:none;"></pre>
+
+<script>
+(async () => {
+  const pyodide = await loadPyodide({indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.0/full/"});
+  await pyodide.loadPackage(['micropip']);
+  const micropip = pyodide.pyimport('micropip');
+  await micropip.install('numpy');
+  // await micropip.install('pandas');
+  // await micropip.install('plotly==5.15.0'); // plotly Python (used only to show example; we will use Plotly.js for plotting)
+  // Provide a Python compute function: replace with your actual logic.
+  const pyCode = `
+import numpy as np
+def simulateLorenz(sigma=10, rho=28, beta=2.667, dt=0.01, numSteps=5000, x_i=1, y_i=0, z_i=0):
+    n = int(numSteps)
+    xs = np.empty(n)
+    ys = np.empty(n)
+    zs = np.empty(n)
+    x = float(x_i); y = float(y_i); z = float(z_i)
+    for i in range(n):
+        xs[i] = x
+        ys[i] = y
+        zs[i] = z
+        dx = sigma * (y - x)
+        dy = rho * x - y - x * z
+        dz = x * y - beta * z
+        x = x + dt * dx
+        y = y + dt * dy
+        z = z + dt * dz
+    return { "x": xs.tolist(), "y": ys.tolist(), "z": zs.tolist() }
+`;
+await pyodide.runPythonAsync(pyCode);
+  const simulateLorenz = pyodide.globals.get('simulateLorenz');
+
+  // elements
+  const elSigma = document.getElementById('slider_sigma');
+  const elRho = document.getElementById('slider_rho');
+  const elBeta = document.getElementById('slider_beta');
+  const elX = document.getElementById('slider_x');
+  const elY = document.getElementById('slider_y');
+  const elZ = document.getElementById('slider_z');
+  const elDT = document.getElementById('slider_dt');
+  const elN = document.getElementById('slider_n');
+
+  const valSigma = document.getElementById('val_sigma');
+  const valRho = document.getElementById('val_rho');
+  const valBeta = document.getElementById('val_beta');
+  const valX = document.getElementById('val_x');
+  const valY = document.getElementById('val_y');
+  const valZ = document.getElementById('val_z');
+  const valDT = document.getElementById('val_dt');
+  const valN = document.getElementById('val_n');
+
+  const runBtn = document.getElementById('run');
+  const outPre = document.getElementById('py-output');
+
+  function updateLabels(){
+    valSigma.textContent = parseFloat(elSigma.value).toFixed(3);
+    valRho.textContent = parseFloat(elRho.value).toFixed(3);
+    valBeta.textContent = parseFloat(elBeta.value);
+    valX.textContent = parseFloat(elX.value);
+    valY.textContent = parseFloat(elY.value);
+    valZ.textContent = parseFloat(elZ.value);
+    valDT.textContent = parseFloat(elDT.value);
+    valN.textContent = elN.value;
+  }
+  [elSigma, elRho, elBeta, elX, elY, elZ, elDT, elN].forEach(el=> el.oninput = updateLabels);
+  updateLabels();
+
+  async function runCompute(){
+    runBtn.disabled = true;
+    outPre.style.display = 'none';
+    try {
+      const sigma = parseFloat(elSigma.value);
+      const rho = parseFloat(elRho.value);
+      const beta = parseFloat(elBeta.value);
+      const dt = parseFloat(elDT.value);
+      const n = parseInt(elN.value);
+      const x0 = parseFloat(elX.value);
+      const y0 = parseFloat(elY.value);
+      const z0 = parseFloat(elZ.value);
+
+      const res_py = simulateLorenz(sigma, rho, beta, dt, n, x0, y0, z0);
+      const obj = res_py.toJs({dict_converter: Object});
+      console.log(obj) 
+      res_py.destroy && res_py.destroy();
+
+      const x = obj.x;
+      const y = obj.y;
+      const z = obj.z;
+
+      const trace = { x: x, y: y, z: z, mode: 'lines', type: 'scatter3d', line:{width:2} };
+      const layout = { title: 'Lorenz attractor', margin:{t:40} };
+      Plotly.react('plot', [trace], layout, {responsive:true});
+
+    } catch(err){
+      outPre.style.display = 'block';
+      outPre.textContent = String(err);
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  runBtn.onclick = runCompute;
+  let debounceTimer = null;
+  [elSigma, elRho, elBeta, elX, elY, elZ, elDT, elN].forEach(el=>{
+    el.onchange = () => {
+      if(debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runCompute, 200);
+    };
+  });
+
+  runCompute();
+})();
+</script>
+</body>
+</html>
